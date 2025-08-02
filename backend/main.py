@@ -113,12 +113,12 @@ def analyze_code(req: CodeRequest) -> dict[str, int | str | list[str]]:
 
 @app.post("/test")
 def test_code(req: CodeRequest) -> dict[str, str | int]:
-    code_filename = f"user_code_{uuid.uuid4().hex}.py"
+    code_filename = "user_code.py"  # Always use this name for import to work
     test_filename = f"test_{uuid.uuid4().hex}.py"
     # Write user code
     with open(code_filename, "w") as f:
         f.write(req.code)
-    # Write test code (example: you can generate this dynamically)
+    # Write test code
     test_code = textwrap.dedent("""
         from user_code import min_swaps
 
