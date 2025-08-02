@@ -37,6 +37,24 @@ const problemData: Record<string, any> = {
   },
 };
 
+function parseTestOutput(output: string) {
+  // Simple extraction for pytest output
+  const failMatches = output.match(/={5,} FAILURES ={5,}([\s\S]*?)={5,}/);
+  const summaryMatch = output.match(/=+ (\d+) failed.*in [\d.]+s =+/);
+  let failures: string[] = [];
+  if (failMatches) {
+    // Extract each failure block
+    failures = failMatches[1]
+      .split(/_{5,}/)
+      .map((f: string) => f.trim())
+      .filter((f: string) => f);
+  }
+  return {
+    failed: summaryMatch ? summaryMatch[1] : "0",
+    failures,
+  };
+}
+
 const ProblemSubmissionPage: React.FC = () => {
   const { problemId } = useParams();
   const problem = problemData[problemId as string] || problemData["digit-swap"];
@@ -141,34 +159,44 @@ const ProblemSubmissionPage: React.FC = () => {
               : "N/A"}
           </Typography>
 
-          {/* Output */}
+          {/* Output and Test Results */}
           <Typography sx={{ mt: 2 }}>
             <b>Output:</b>
           </Typography>
-          <pre style={{ background: "#f5f5f5", padding: 8, borderRadius: 4 }}>
-            {result.output || result.stdout || "No output."}
-          </pre>
-
-          {/* Test Results */}
-          {(result.output && result.output.includes("==")) ||
-          result.test_output ? (
-            <>
-              <Typography sx={{ mt: 2 }}>
-                <b>Test Results:</b>
-              </Typography>
-              <pre
-                style={{
-                  background: "#e3f2fd",
-                  padding: 8,
-                  borderRadius: 4,
-                  color: "#0d47a1",
-                  fontWeight: 500,
-                }}
-              >
-                {result.test_output || result.output}
-              </pre>
-            </>
-          ) : null}
+          {result.output && result.output.includes("FAILURES") ? (
+            (() => {
+              const parsed = parseTestOutput(result.output);
+              return (
+                <>
+                  <Typography color="error">
+                    {parsed.failed} test{parsed.failed === "1" ? "" : "s"}{" "}
+                    failed
+                  </Typography>
+                  {parsed.failures.map((fail, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        mb: 2,
+                        background: "#fff3f3",
+                        p: 1,
+                        borderRadius: 1,
+                      }}
+                    >
+                      <pre
+                        style={{ margin: 0, color: "#b71c1c", fontSize: 14 }}
+                      >
+                        {fail.split("\n").slice(0, 6).join("\n")}...
+                      </pre>
+                    </Box>
+                  ))}
+                </>
+              );
+            })()
+          ) : (
+            <pre style={{ background: "#f5f5f5", padding: 8, borderRadius: 4 }}>
+              {result.output || result.stdout || "No output."}
+            </pre>
+          )}
 
           {/* Errors */}
           {result.stderr && (
