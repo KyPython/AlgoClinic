@@ -3,7 +3,7 @@ import { Box, Typography, Button, Paper } from "@mui/material";
 import Editor from "@monaco-editor/react";
 import { useParams } from "react-router-dom";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = process.env.REACT_APP_API_URL;
 
 const problemData: Record<string, any> = {
   "digit-swap": {
