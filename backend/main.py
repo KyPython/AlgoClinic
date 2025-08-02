@@ -10,10 +10,15 @@ import ast
 
 app = FastAPI()
 
-# Add CORS middleware after app is created
+# Update this to your deployed frontend domain for production!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or specify your frontend URL
+    allow_origins=[
+        "https://algo-clinic-pp1wiibt8-kypythons-projects.vercel.app",
+        "https://algoclinic-frontend.vercel.app",
+        "https://algoclinic.vercel.app",
+        "*",  # For testing only
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -23,7 +28,7 @@ class CodeRequest(BaseModel):
     code: str
 
 @app.post("/execute")
-def execute_code(req: CodeRequest):
+def execute_code(req: CodeRequest) -> dict[str, str | int]:
     filename = f"user_code_{uuid.uuid4().hex}.py"
     with open(filename, "w") as f:
         f.write(req.code)
@@ -47,7 +52,7 @@ def execute_code(req: CodeRequest):
             os.remove(filename)
 
 @app.post("/benchmark")
-def benchmark_code(req: CodeRequest):
+def benchmark_code(req: CodeRequest) -> dict[str, str | float]:
     filename = f"user_code_{uuid.uuid4().hex}.py"
     with open(filename, "w") as f:
         f.write(req.code)
@@ -74,7 +79,7 @@ def benchmark_code(req: CodeRequest):
             os.remove(filename)
 
 @app.post("/analyze")
-def analyze_code(req: CodeRequest):
+def analyze_code(req: CodeRequest) -> dict[str, int | str | list[str]]:
     lines = req.code.strip().split("\n")
     num_lines = len(lines)
     num_functions = sum(1 for l in lines if l.strip().startswith("def "))
@@ -85,12 +90,12 @@ def analyze_code(req: CodeRequest):
         def __init__(self):
             self.depth = 0
             self.max_depth = 0
-        def visit_For(self, node):
+        def visit_For(self, node: ast.For) -> None:
             self.depth += 1
             self.max_depth = max(self.max_depth, self.depth)
             self.generic_visit(node)
             self.depth -= 1
-        def visit_While(self, node):
+        def visit_While(self, node: ast.While) -> None:
             self.depth += 1
             self.max_depth = max(self.max_depth, self.depth)
             self.generic_visit(node)
@@ -107,7 +112,7 @@ def analyze_code(req: CodeRequest):
     }
 
 @app.post("/test")
-def test_code(req: CodeRequest):
+def test_code(req: CodeRequest) -> dict[str, str | int]:
     code_filename = f"user_code_{uuid.uuid4().hex}.py"
     test_filename = f"test_{uuid.uuid4().hex}.py"
     # Write user code
@@ -150,14 +155,14 @@ class BenchmarkRequest(BaseModel):
     code2: str
 
 @app.post("/benchmark_compare")
-def benchmark_compare(req: BenchmarkRequest):
-    def run_benchmark(code):
+def benchmark_compare(req: BenchmarkRequest) -> dict[str, float]:
+    def run_benchmark(code: str) -> float:
         filename = f"user_code_{uuid.uuid4().hex}.py"
         with open(filename, "w") as f:
             f.write(code)
         try:
             start = time.time()
-            result = subprocess.run(
+            subprocess.run(
                 ["python", filename],
                 capture_output=True,
                 text=True,
@@ -173,28 +178,31 @@ def benchmark_compare(req: BenchmarkRequest):
     return {"runtime_1": t1, "runtime_2": t2}
 
 @app.post("/optimize")
-def optimize_code(req: CodeRequest):
+def optimize_code(req: CodeRequest) -> dict[str, list[str]]:
     # Example: detect nested loops
     tree = ast.parse(req.code)
-    nested_loops = False
     class LoopVisitor(ast.NodeVisitor):
         def __init__(self):
             self.depth = 0
             self.max_depth = 0
-        def visit_For(self, node):
+        def visit_For(self, node: ast.For) -> None:
             self.depth += 1
             self.max_depth = max(self.max_depth, self.depth)
             self.generic_visit(node)
             self.depth -= 1
-        def visit_While(self, node):
+        def visit_While(self, node: ast.While) -> None:
             self.depth += 1
             self.max_depth = max(self.max_depth, self.depth)
             self.generic_visit(node)
             self.depth -= 1
     visitor = LoopVisitor()
     visitor.visit(tree)
-    suggestions = []
+    suggestions: list[str] = []
     if visitor.max_depth > 1:
         suggestions.append("Consider reducing nested loops for better performance.")
     # Add more static analysis as needed
     return {"suggestions": suggestions}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
