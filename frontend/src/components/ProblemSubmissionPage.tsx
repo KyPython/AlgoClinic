@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { Box, Typography, Button, Paper } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Select,
+  MenuItem,
+} from "@mui/material";
 import Editor from "@monaco-editor/react";
 import { useParams } from "react-router-dom";
 
@@ -62,6 +69,7 @@ const ProblemSubmissionPage: React.FC = () => {
   const [code, setCode] = useState(problem.defaultCode);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<string>("python");
 
   // Helper to call backend endpoints
   async function callEndpoint(endpoint: string, body: any) {
@@ -73,21 +81,19 @@ const ProblemSubmissionPage: React.FC = () => {
     return response.json();
   }
 
-  // Submit handler: call all endpoints and combine results
+  // Update handleSubmit and callEndpoint to send language:
   const handleSubmit = async () => {
     setLoading(true);
     setResult(null);
     try {
-      // Run all endpoints in parallel, including /test if implemented
       const [execRes, benchRes, analyzeRes, optimizeRes, testRes] =
         await Promise.all([
-          callEndpoint("execute", { code }),
-          callEndpoint("benchmark", { code }),
-          callEndpoint("analyze", { code }),
-          callEndpoint("optimize", { code }),
-          callEndpoint("test", { code }),
+          callEndpoint("execute", { code, language }),
+          callEndpoint("benchmark", { code, language }),
+          callEndpoint("analyze", { code, language }),
+          callEndpoint("optimize", { code, language }),
+          callEndpoint("test", { code, language }),
         ]);
-      // Merge all results
       setResult({
         ...execRes,
         ...benchRes,
@@ -102,7 +108,16 @@ const ProblemSubmissionPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 900, mx: "auto", my: 6 }}>
+    <Box>
+      <Select
+        value={language}
+        onChange={(event) => setLanguage(event.target.value as string)}
+        sx={{ mb: 2, minWidth: 120 }}
+      >
+        <MenuItem value="python">Python</MenuItem>
+        <MenuItem value="cpp">C++</MenuItem>
+        <MenuItem value="js">JavaScript</MenuItem>
+      </Select>
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h4" gutterBottom>
           {problem.title}

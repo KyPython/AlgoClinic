@@ -7,6 +7,11 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import textwrap
 import ast
+from pymongo import MongoClient
+
+client = MongoClient("your-mongodb-uri")
+db = client.algoclinic
+submissions = db.submissions
 
 app = FastAPI()
 
@@ -26,44 +31,72 @@ app.add_middleware(
 
 class CodeRequest(BaseModel):
     code: str
+    language: str = "python"  # default to python
 
 @app.post("/execute")
 def execute_code(req: CodeRequest) -> dict[str, str | int]:
-    filename = f"user_code_{uuid.uuid4().hex}.py"
+    ext = {"python": "py", "cpp": "cpp", "js": "js"}.get(req.language, "py")
+    filename = f"user_code.{ext}"
     with open(filename, "w") as f:
         f.write(req.code)
     try:
-        result = subprocess.run(
-            ["python", filename],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        if req.language == "python":
+            cmd = ["python", filename]
+        elif req.language == "cpp":
+            exe = "user_code.out"
+            compile_res = subprocess.run(["g++", filename, "-o", exe], capture_output=True, text=True)
+            if compile_res.returncode != 0:
+                return {"output": "", "stderr": compile_res.stderr, "returncode": compile_res.returncode}
+            cmd = [f"./{exe}"]
+        elif req.language == "js":
+            cmd = ["node", filename]
+        else:
+            return {"output": "", "stderr": f"Unsupported language: {req.language}", "returncode": 1}
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         return {
             "output": result.stdout,
             "stderr": result.stderr,
             "returncode": result.returncode
         }
     except Exception as e:
-        print("UNEXPECTED ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(filename):
             os.remove(filename)
+        if req.language == "cpp" and os.path.exists("user_code.out"):
+            os.remove("user_code.out")
 
 @app.post("/benchmark")
 def benchmark_code(req: CodeRequest) -> dict[str, str | float]:
-    filename = f"user_code_{uuid.uuid4().hex}.py"
+    ext = {"python": "py", "cpp": "cpp", "js": "js"}.get(req.language, "py")
+    filename = f"user_code_bench.{ext}"
+    exe = "user_code_bench.out"
     with open(filename, "w") as f:
         f.write(req.code)
     try:
         start = time.time()
-        result = subprocess.run(
-            ["python", filename],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        if req.language == "python":
+            cmd = ["python", filename]
+        elif req.language == "cpp":
+            compile_res = subprocess.run(["g++", filename, "-o", exe], capture_output=True, text=True)
+            if compile_res.returncode != 0:
+                return {
+                    "output": "",
+                    "stderr": compile_res.stderr,
+                    "runtime_seconds": 0,
+                    "memory": "N/A (see notes for real memory profiling)"
+                }
+            cmd = [f"./{exe}"]
+        elif req.language == "js":
+            cmd = ["node", filename]
+        else:
+            return {
+                "output": "",
+                "stderr": f"Unsupported language: {req.language}",
+                "runtime_seconds": 0,
+                "memory": "N/A"
+            }
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         elapsed = time.time() - start
         return {
             "output": result.stdout,
@@ -77,6 +110,8 @@ def benchmark_code(req: CodeRequest) -> dict[str, str | float]:
     finally:
         if os.path.exists(filename):
             os.remove(filename)
+        if req.language == "cpp" and os.path.exists(exe):
+            os.remove(exe)
 
 @app.post("/analyze")
 def analyze_code(req: CodeRequest) -> dict[str, int | str | list[str]]:
@@ -113,14 +148,15 @@ def analyze_code(req: CodeRequest) -> dict[str, int | str | list[str]]:
 
 @app.post("/test")
 def test_code(req: CodeRequest) -> dict[str, str | int]:
-    code_filename = "user_code.py"  # Always use this name for import to work
+    ext = {"python": "py", "cpp": "cpp", "js": "js"}.get(req.language, "py")
+    code_filename = f"user_code_test.{ext}"
     test_filename = f"test_{uuid.uuid4().hex}.py"
-    # Write user code
+    exe = "user_code_test.out"
     with open(code_filename, "w") as f:
         f.write(req.code)
-    # Write test code
+    # Write test code (Python only for now)
     test_code = textwrap.dedent("""
-        from user_code import min_swaps
+        from user_code_test import min_swaps
 
         def test_empty():
             assert min_swaps(0, 0) == 0
@@ -131,12 +167,33 @@ def test_code(req: CodeRequest) -> dict[str, str | int]:
     with open(test_filename, "w") as f:
         f.write(test_code)
     try:
-        result = subprocess.run(
-            ["pytest", test_filename],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        if req.language == "python":
+            result = subprocess.run(
+                ["pytest", test_filename],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+        elif req.language == "cpp":
+            # For C++, you would need to write and run C++ test code (not implemented here)
+            return {
+                "output": "",
+                "stderr": "C++ testing not implemented yet.",
+                "returncode": 1
+            }
+        elif req.language == "js":
+            # For JS, you would need to write and run JS test code (not implemented here)
+            return {
+                "output": "",
+                "stderr": "JavaScript testing not implemented yet.",
+                "returncode": 1
+            }
+        else:
+            return {
+                "output": "",
+                "stderr": f"Unsupported language: {req.language}",
+                "returncode": 1
+            }
         return {
             "output": result.stdout,
             "stderr": result.stderr,
@@ -149,6 +206,8 @@ def test_code(req: CodeRequest) -> dict[str, str | int]:
         for fn in [code_filename, test_filename]:
             if os.path.exists(fn):
                 os.remove(fn)
+        if req.language == "cpp" and os.path.exists(exe):
+            os.remove(exe)
 
 class BenchmarkRequest(BaseModel):
     code1: str
@@ -202,6 +261,11 @@ def optimize_code(req: CodeRequest) -> dict[str, list[str]]:
         suggestions.append("Consider reducing nested loops for better performance.")
     # Add more static analysis as needed
     return {"suggestions": suggestions}
+
+@app.post("/submit_log")
+def log_submission(data: dict[str, object]):
+    submissions.insert_one(data)
+    return {"status": "logged"}
 
 if __name__ == "__main__":
     import uvicorn
