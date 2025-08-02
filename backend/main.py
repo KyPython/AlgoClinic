@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-import docker
+import subprocess
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,8 +19,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-docker_client = docker.from_env()
-
 class CodeRequest(BaseModel):
     code: str
 
@@ -30,21 +28,17 @@ def execute_code(req: CodeRequest):
     with open(filename, "w") as f:
         f.write(req.code)
     try:
-        output = docker_client.containers.run(
-            image="python:3.11",
-            command=f"python /code/{filename}",
-            volumes={os.path.abspath('.'): {"bind": "/code", "mode": "rw"}},
-            working_dir="/code",
-            remove=True,
-            network_disabled=True,
-            mem_limit="128m",
-            stderr=True,
-            stdout=True,
-            detach=False,
+        result = subprocess.run(
+            ["python", filename],
+            capture_output=True,
+            text=True,
+            timeout=5
         )
-        return {"output": output.decode()}
-    except docker.errors.ContainerError as e:
-        return {"error": e.stderr.decode() if e.stderr else str(e)}
+        return {
+            "output": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode
+        }
     except Exception as e:
         print("UNEXPECTED ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -59,26 +53,19 @@ def benchmark_code(req: CodeRequest):
         f.write(req.code)
     try:
         start = time.time()
-        output = docker_client.containers.run(
-            image="python:3.11",
-            command=f"python /code/{filename}",
-            volumes={os.path.abspath('.'): {"bind": "/code", "mode": "rw"}},
-            working_dir="/code",
-            remove=True,
-            network_disabled=True,
-            mem_limit="128m",
-            stderr=True,
-            stdout=True,
-            detach=False,
+        result = subprocess.run(
+            ["python", filename],
+            capture_output=True,
+            text=True,
+            timeout=5
         )
         elapsed = time.time() - start
         return {
-            "output": output.decode(),
+            "output": result.stdout,
+            "stderr": result.stderr,
             "runtime_seconds": elapsed,
             "memory": "N/A (see notes for real memory profiling)"
         }
-    except docker.errors.ContainerError as e:
-        return {"error": e.stderr.decode() if e.stderr else str(e)}
     except Exception as e:
         print("UNEXPECTED ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -139,19 +126,17 @@ def test_code(req: CodeRequest):
     with open(test_filename, "w") as f:
         f.write(test_code)
     try:
-        output = docker_client.containers.run(
-            image="python:3.11",
-            command=f"pytest /code/{test_filename}",
-            volumes={os.path.abspath('.'): {"bind": "/code", "mode": "rw"}},
-            working_dir="/code",
-            remove=True,
-            network_disabled=True,
-            mem_limit="128m",
-            stderr=True,
-            stdout=True,
-            detach=False,
+        result = subprocess.run(
+            ["pytest", test_filename],
+            capture_output=True,
+            text=True,
+            timeout=10
         )
-        return {"output": output.decode()}
+        return {
+            "output": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode
+        }
     except Exception as e:
         print("UNEXPECTED ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,17 +157,11 @@ def benchmark_compare(req: BenchmarkRequest):
             f.write(code)
         try:
             start = time.time()
-            output = docker_client.containers.run(
-                image="python:3.11",
-                command=f"python /code/{filename}",
-                volumes={os.path.abspath('.'): {"bind": "/code", "mode": "rw"}},
-                working_dir="/code",
-                remove=True,
-                network_disabled=True,
-                mem_limit="128m",
-                stderr=True,
-                stdout=True,
-                detach=False,
+            result = subprocess.run(
+                ["python", filename],
+                capture_output=True,
+                text=True,
+                timeout=5
             )
             elapsed = time.time() - start
             return elapsed
