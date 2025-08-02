@@ -140,49 +140,69 @@ const ProblemSubmissionPage: React.FC = () => {
               ? result.suggestions.join(", ")
               : "N/A"}
           </Typography>
-          <Typography>
+
+          {/* Output */}
+          <Typography sx={{ mt: 2 }}>
             <b>Output:</b>
           </Typography>
-          <pre style={{ background: "#f5f5f5", padding: 8 }}>
-            {result.output || result.stdout || ""}
+          <pre style={{ background: "#f5f5f5", padding: 8, borderRadius: 4 }}>
+            {result.output || result.stdout || "No output."}
           </pre>
+
           {/* Test Results */}
-          {result.output && result.output.includes("==") && (
+          {(result.output && result.output.includes("==")) ||
+          result.test_output ? (
             <>
-              <Typography>
+              <Typography sx={{ mt: 2 }}>
                 <b>Test Results:</b>
               </Typography>
-              <pre style={{ background: "#f5f5f5", padding: 8 }}>
-                {result.output}
+              <pre
+                style={{
+                  background: "#e3f2fd",
+                  padding: 8,
+                  borderRadius: 4,
+                  color: "#0d47a1",
+                  fontWeight: 500,
+                }}
+              >
+                {result.test_output || result.output}
               </pre>
             </>
-          )}
-          {result.test_output && (
-            <>
-              <Typography>
-                <b>Test Results:</b>
-              </Typography>
-              <pre style={{ background: "#f5f5f5", padding: 8 }}>
-                {result.test_output}
-              </pre>
-            </>
-          )}
+          ) : null}
+
+          {/* Errors */}
           {result.stderr && (
             <>
-              <Typography color="error">
+              <Typography color="error" sx={{ mt: 2 }}>
                 <b>Errors:</b>
               </Typography>
-              <pre style={{ background: "#f5f5f5", padding: 8 }}>
+              <pre
+                style={{
+                  background: "#ffebee",
+                  padding: 8,
+                  borderRadius: 4,
+                  color: "#b71c1c",
+                  fontWeight: 500,
+                }}
+              >
                 {result.stderr}
               </pre>
             </>
           )}
           {result.error && (
             <>
-              <Typography color="error">
+              <Typography color="error" sx={{ mt: 2 }}>
                 <b>Error:</b>
               </Typography>
-              <pre style={{ background: "#f5f5f5", padding: 8 }}>
+              <pre
+                style={{
+                  background: "#ffebee",
+                  padding: 8,
+                  borderRadius: 4,
+                  color: "#b71c1c",
+                  fontWeight: 500,
+                }}
+              >
                 {result.error}
               </pre>
             </>
